@@ -29,29 +29,55 @@ def gemm_fp64(A: torch.Tensor, B: torch.Tensor) -> torch.Tensor:
     return A.double() @ B.double().T
 
 
-def gemm_scale_per_row_col(A: torch.Tensor, B: torch.Tensor,
-                           sA: torch.Tensor, sB: torch.Tensor) -> torch.Tensor:
+def gemm_scale_per_row_col(
+    A: torch.Tensor, B: torch.Tensor, sA: torch.Tensor, sB: torch.Tensor
+) -> torch.Tensor:
     """sA: [M]，sB: [N]，均为正数。
 
     TODO: 先用 row/column scale 得到归一化的 A、B，完整点积后
     在输出 [M, N] 上乘回 scale 乘积。
     """
-    raise NotImplementedError
+    M = sA.size(0)
+    N = sB.size(0)
+    normalizedA = A / sA.view(size=(-1, 1))
+    normalizedB = B / sB.view(size=(-1, 1))
+
+    C = normalizedA @ normalizedB.T
+    for m in range(M):
+        for n in range(N):
+            C[m, n] *= sA[m] * sB[n]
+    return C
 
 
-def gemm_scale_along_k(A: torch.Tensor, B: torch.Tensor,
-                       sA: torch.Tensor, sB: torch.Tensor) -> torch.Tensor:
+def gemm_scale_along_k(
+    A: torch.Tensor, B: torch.Tensor, sA: torch.Tensor, sB: torch.Tensor
+) -> torch.Tensor:
     """sA: [M, K//SEG]，sB: [N, K//SEG]，均为正数。
 
     TODO: 逐个 K block 计算归一化 partial sum，在段末乘回
     该段的 sA*sB，再累加。返回 [M, N] 的 fp64 结果。
     """
-    raise NotImplementedError
+    M = A.size(0)
+    N = B.size(0)
+    K = A.size(1)
+    C = torch.empty((M, N), dtype=A.dtype)
+    for m in range(M):
+        for n in range(N):
+            acc = 0
+            for k in range(0, K // SEG):
+                normalizedASeg = A[m, k * SEG : min((k + 1) * SEG, K)] / sA[m, k]
+                normalizedBSeg = B[n, k * SEG : min((k + 1) * SEG, K)] / sB[n, k]
+                acc += (sA[m, k] * sB[n, k]) * (
+                    normalizedASeg @ normalizedBSeg.view((-1, 1))
+                )
+            C[m, n] = acc
+
+    return C
 
 
-def gemm_scale_along_k_one_restore(A: torch.Tensor, B: torch.Tensor,
-                                   sA: torch.Tensor,
-                                   sB: torch.Tensor) -> torch.Tensor:
+def gemm_scale_along_k_one_restore(
+    A: torch.Tensor, B: torch.Tensor, sA: torch.Tensor, sB: torch.Tensor
+) -> torch.Tensor:
     """故意错误的对照：只在整个 K 归约后乘回第一段 scale。"""
     M, K = A.shape
     N = B.shape[0]

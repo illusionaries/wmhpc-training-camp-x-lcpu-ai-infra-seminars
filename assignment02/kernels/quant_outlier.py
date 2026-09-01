@@ -14,39 +14,56 @@ import torch
 E4M3_MAX = 448.0
 
 
-def build_tensor(n: int = 10000, outlier: float = 3000.0) -> torch.Tensor:
+def build_tensor(n: int = 10000, outlier: float | bool = 3000.0) -> torch.Tensor:
     g = torch.Generator().manual_seed(0)
     x = torch.rand(n, generator=g) * 2 - 1
+    if outlier == False:
+        return x
     return torch.cat([x, torch.tensor([outlier])])
 
 
-def quant_dequant_per_tensor(x: torch.Tensor) -> torch.Tensor:
-    """per-tensor E4M3 量化再反量化。
+def quant_per_tensor(x: torch.Tensor) -> tuple[torch.Tensor, float]:
+    scale = torch.amax(x) / E4M3_MAX
+    return (x / scale).to(dtype=torch.float8_e4m3fn), scale.item()
 
-    TODO: 实现。步骤:算 scale = amax / 448;除 scale 后 cast 到
-    torch.float8_e4m3fn;cast 回 float 再乘 scale。
-    """
-    raise NotImplementedError
+
+def dequant_per_tensor(x: torch.Tensor, scale: float) -> torch.Tensor:
+    return x.to(dtype=torch.float) * scale
+
+
+def quant_dequant_per_tensor(x: torch.Tensor) -> torch.Tensor:
+    """per-tensor E4M3 量化再反量化。"""
+    quant, scale = quant_per_tensor(x)
+    return dequant_per_tensor(quant, scale)
 
 
 def rel_err_at(x: torch.Tensor, y: torch.Tensor, value: float) -> float:
-    """取 x 中最接近 value 的元素,返回该点的相对误差。
-
-    TODO: 实现(表格的每一格都从这里来)。
-    """
-    raise NotImplementedError
+    """取 x 中最接近 value 的元素,返回该点的相对误差。"""
+    diff = torch.abs(x - value)
+    idx = torch.argmin(diff)
+    return (
+        float("inf")
+        if torch.isclose(x[idx], torch.tensor(0.0))
+        else (torch.abs(x[idx] - y[idx]) / (x[idx])).item()
+    )
 
 
 def main() -> None:
-    x = build_tensor()
-    y = quant_dequant_per_tensor(x)
+    w_outlier_x = build_tensor()
+    w_outlier_y = quant_dequant_per_tensor(w_outlier_x)
     print("含 outlier:")
     for v in (0.5, 0.1, 0.01, 0.005, 3000.0):
-        print(f"  x≈{v:<8} rel_err={rel_err_at(x, y, v):.3e}")
+        print(f"  x≈{v:<8} rel_err={rel_err_at(w_outlier_x, w_outlier_y, v):.3e}")
     # (a) 去掉 outlier 重新量化,对比 0.5 处的误差
     # (b) 找出被量化成 0 的阈值,写出它与 scale 的关系式
     # (c) 换 1x128 的 per-block scale,对比含/不含 outlier 的 block
     # 这三问自己补代码,结果写进报告。
+
+    wo_outlier_x = build_tensor(outlier=False)
+    wo_outlier_y = quant_dequant_per_tensor(wo_outlier_x)
+    print("不含 outlier:")
+    for v in (0.5, 0.1, 0.01, 0.005, 3000.0):
+        print(f"  x≈{v:<8} rel_err={rel_err_at(wo_outlier_x, wo_outlier_y, v):.3e}")
 
 
 if __name__ == "__main__":

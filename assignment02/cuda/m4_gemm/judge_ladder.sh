@@ -7,7 +7,7 @@ set -u
 cd "$(dirname "$0")"
 SHAPE=${*:-""}
 fail=0
-for t in 01_tiled 02_tma 03_pipeline; do
+for t in 01_tiled 02_tma 03_pipeline 04; do
     (cd .. && make -s bin/m4_gemm/$t) || { echo "$t: 编译失败"; fail=1; continue; }
     timeout -k 5 180 ../bin/m4_gemm/$t $SHAPE || fail=1
 done

@@ -98,6 +98,7 @@ __global__ void tcgen05_tile(const __nv_bfloat16* gA, const __nv_bfloat16* gB,
     uint32_t idesc = (1u << 4) | (1u << 7) | (1u << 10) | (8u << 17) |
                      (8u << 24);
     float acc[8][8] = {};  // [N/8 段][8 列]
+    uint32_t phase = 0;
     for (int round = 0; round < rounds; round++) {
         int kk = round * 16;
         if (warp == 0 && elected) {
@@ -114,7 +115,8 @@ __global__ void tcgen05_tile(const __nv_bfloat16* gA, const __nv_bfloat16* gB,
                 ".shared::cluster.b64 [%0];" ::"r"(mbar_u32)
                 : "memory");
         }
-        mbar_wait(mbar_u32, 0);
+        mbar_wait(mbar_u32, phase);
+        phase ^= 1;
         asm volatile("tcgen05.fence::after_thread_sync;");
         for (int c = 0; c < N; c += 8) {
             uint32_t src = taddr + ((uint32_t)(warp * 32) << 16) + c;

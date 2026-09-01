@@ -3,7 +3,11 @@ name = "assignment02"
 version = "0.1.0"
 description = "Weiming HPC Training Camp x LCPU AI Infra Seminars - Assignment 02 (Tensor Core)"
 requires-python = ">=3.10"
-dependencies = ["torch>=2.8", "pytest>=8"]
+dependencies = [
+    "torch>=2.8",
+    "pytest>=8",
+    "numpy>=2.2.6",
+]
 
 [project.optional-dependencies]
 tilelang = ["tilelang==0.1.13"]

@@ -12,7 +12,7 @@
 
 NVCC  ?= nvcc
 ARCH  ?= 100f
-FLAGS ?= -O2 -std=c++17 -I. --expt-relaxed-constexpr
+FLAGS ?= -O2 -std=c++17 -I. --expt-relaxed-constexpr -g -lineinfo -D__CUDA_ARCH_FEAT_SM101_ALL
 
 # 问题 4.3 的流水级数:STAGES=4 make -B bin/m4_gemm/03_pipeline
 # -B 不能省——只改 -D 不改源文件,make 会认为目标是新鲜的。

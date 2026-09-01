@@ -54,3 +54,5 @@ secrets/
 
 # Organizer-only tooling (HPC Game 题库上传脚本等)
 tools/
+
+local
