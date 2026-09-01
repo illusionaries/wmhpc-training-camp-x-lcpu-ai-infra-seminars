@@ -22,7 +22,44 @@ Tip: elementwise + 行内归约的 kernel 大概率是带宽瓶颈，可以想�
 import torch
 import tilelang
 import tilelang.language as T
+import functools
 
+@functools.cache
+def make_softmax(m: int, n: int, dtype="float32"):
+    p = 1 << ((n - 1).bit_length())
+    @T.prim_func
+    def main(x: T.Tensor((m, n), dtype), out: T.Tensor((m, n), dtype)):
+        with T.Kernel(m, threads=128) as b:
+            row_shared = T.alloc_fragment((1, p), dtype)
+            max_shared = T.alloc_fragment((1,), dtype)
+            sum_shared = T.alloc_fragment((1,), dtype)
+            for i in T.Parallel(p):
+                row_shared[0, i] = T.if_then_else(i < n, x[b, i], -T.infinity(dtype))
+            T.reduce_max(row_shared, max_shared)
+            for i in T.Parallel(p):
+                row_shared[0, i] = T.exp(row_shared[0, i] - max_shared[0])
+            T.reduce_sum(row_shared, sum_shared)
+            for i in T.Parallel(p):
+                row_shared[0, i] /= sum_shared[0]
+            for i in T.Parallel(p):
+                if i < n:
+                    out[b, i] = row_shared[0, i]
+    
+    return main
+            
 
 def softmax(x: torch.Tensor) -> torch.Tensor:
-    raise NotImplementedError("从这里开始写")
+    m, n = x.shape
+    func = make_softmax(m, n)
+    kernel = tilelang.compile(func, out_idx=1)
+    return kernel(x)
+
+def main():
+    import torch
+    x = torch.randn((32, 255), device="cuda", dtype=torch.float32)
+    y = softmax(x)
+    y_exp = torch.softmax(x, dim=-1)
+    torch.testing.assert_close(y, y_exp)
+
+if __name__ == "__main__":
+    main()

@@ -12,7 +12,7 @@
 
 __global__ void stencil_static(const float *in, float *out, int n) {
     // ====== 空 1：静态 shared 数组，要装下 BLOCK 个元素加两侧 halo ======
-    __shared__ float tile[/* 填这里 */];
+    __shared__ float tile[BLOCK + RADIUS * 2];
 
     int g = blockIdx.x * blockDim.x + threadIdx.x;  // 全局下标
     int l = threadIdx.x + RADIUS;                   // 在 tile 里的位置
@@ -27,17 +27,17 @@ __global__ void stencil_static(const float *in, float *out, int n) {
     }
 
     // ====== 空 2：在这里补上一行 ======
-    /* 填这里 */
+    __syncthreads();
 
     if (g < n) {
         // ====== 空 3：用 tile（不许用 in）算三点平均 ======
-        out[g] = /* 填这里 */;
+        out[g] = (tile[l - RADIUS] + tile[l] + tile[l + RADIUS]) / 3;
     }
 }
 
 __global__ void stencil_dynamic(const float *in, float *out, int n) {
     // ====== 空 4：动态 shared 数组的声明方式（大小在 launch 时才给出） ======
-    /* 填这里（声明动态 shared 数组 tile）*/
+    extern __shared__ float tile[];
 
     int g = blockIdx.x * blockDim.x + threadIdx.x;
     int l = threadIdx.x + RADIUS;
@@ -84,7 +84,7 @@ int main() {
 
     CUDA_CHECK(cudaMemset(d_out, 0, bytes));
     // ====== 空 5：动态 shared 版本的 launch——第三个参数该填多少字节？ ======
-    stencil_dynamic<<<blocks, BLOCK, /* 填这里 */>>>(d_in, d_out, n);
+    stencil_dynamic<<<blocks, BLOCK, (BLOCK + 2) * sizeof(float)>>>(d_in, d_out, n);
     CUDA_CHECK_KERNEL();
     CUDA_CHECK(cudaMemcpy(h_out, d_out, bytes, cudaMemcpyDeviceToHost));
     if (!check_close(h_out, h_ref, n)) REPORT(0);

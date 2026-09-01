@@ -28,10 +28,12 @@ int main() {
     CUDA_CHECK(cudaMemcpy(d_b, h_b, bytes, cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemset(d_c, 0, bytes));
 
-    int threads = 2048;
+    // int threads = 2048;
+    int threads = 1024; // max threads / block
     int blocks = (n + threads - 1) / threads;
     vectorAdd<<<blocks, threads>>>(d_a, d_b, d_c, n);
     // 注意：这里故意没有做任何错误检查。
+    CUDA_CHECK_KERNEL();
 
     CUDA_CHECK(cudaMemcpy(h_c, d_c, bytes, cudaMemcpyDeviceToHost));
     REPORT(check_close(h_c, h_ref, n));

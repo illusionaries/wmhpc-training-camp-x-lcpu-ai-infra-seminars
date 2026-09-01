@@ -16,23 +16,25 @@ import tilelang.language as T
 def make_scale2d(M, N, block_M=32, block_N=32, dtype="float32"):
     @T.prim_func
     def scale2d(
-        X: T.Buffer((M, N), dtype),
-        Y: T.Buffer((M, N), dtype),
+        X: T.Tensor((M, N), dtype),
+        Y: T.Tensor((M, N), dtype),
     ):
         # ====== 空 1：二维 CTA grid，和 7.3 一样——x 方向管 N 列，
         #         y 方向管 M 行，提示：T.ceildiv ======
-        with T.Kernel(..., ..., threads=128) as (bx, by):
+        with T.Kernel(T.ceildiv(N, block_N), T.ceildiv(M, block_M), threads=128) as (bx, by):
             X_shared = T.alloc_shared((block_M, block_N), dtype)
 
             # ====== 空 2：把当前 tile 从 X 搬进 shared。
             #         提示：T.copy(X[行起点, 列起点], X_shared)，
             #         越界部分 T.copy 会自己处理 ======
-            ...
+            row_start = by * block_M
+            col_start = bx * block_N
+            T.copy(X[row_start, col_start], X_shared)
 
             for i, j in T.Parallel(block_M, block_N):
                 X_shared[i, j] = X_shared[i, j] * 2.0
 
             # ====== 空 3：把算完的 tile 写回 Y 的同一位置 ======
-            ...
+            T.copy(X_shared, Y[row_start, col_start])
 
     return scale2d

@@ -10,7 +10,7 @@ __global__ void histogram(const unsigned char *data, unsigned int *hist, int n) 
         unsigned char v = data[i];
         // ====== 空 1：往 hist[v] 里加 1
         //         该用哪个原子操作？ ======
-        /* 填这里 */;
+        atomicAdd(&hist[v], 1);
     }
 }
 

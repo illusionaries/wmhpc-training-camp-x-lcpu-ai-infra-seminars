@@ -1,0 +1,2 @@
+CompileFlags:
+  Add: [-I/home/lcpu/61831222/wmhpc-training-camp-x-lcpu-ai-infra-seminars/assignment01/cuda, -I/usr/local/cuda/include]

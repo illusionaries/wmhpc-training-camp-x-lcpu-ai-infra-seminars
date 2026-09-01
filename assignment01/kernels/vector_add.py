@@ -13,17 +13,17 @@ import triton.language as tl
 @triton.jit
 def add_kernel(x_ptr, y_ptr, z_ptr, n, BLOCK_SIZE: tl.constexpr):
     # ====== 空 1：当前 program 在一维 grid 里的编号 ======
-    pid = ...
+    pid = tl.program_id(0)
     # ====== 空 2：这个 program 负责的一段全局下标（长度 BLOCK_SIZE） ======
-    offsets = ...
+    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
     # ====== 空 3：屏蔽越界位置的 mask ======
-    mask = ...
+    mask = offsets < n
 
     x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
     y = tl.load(y_ptr + offsets, mask=mask, other=0.0)
 
     # ====== 空 4：把 x + y 写回 z（别忘了 mask） ======
-    ...
+    tl.store(z_ptr + offsets, x + y, mask=mask)
 
 
 def add(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:

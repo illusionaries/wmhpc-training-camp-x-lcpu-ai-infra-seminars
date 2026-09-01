@@ -20,9 +20,9 @@ def make_matmul(M, N, K, BLOCK_M=128, BLOCK_N=128, BLOCK_K=32,
                 dtype="float16", accum_dtype="float32"):
     @T.prim_func
     def main(
-        A: T.Buffer((M, K), dtype),
-        B: T.Buffer((K, N), dtype),
-        C: T.Buffer((M, N), accum_dtype),
+        A: T.Tensor((M, K), dtype),
+        B: T.Tensor((K, N), dtype),
+        C: T.Tensor((M, N), accum_dtype),
     ):
         with T.Kernel(
             T.ceildiv(N, BLOCK_N),
@@ -30,23 +30,23 @@ def make_matmul(M, N, K, BLOCK_M=128, BLOCK_N=128, BLOCK_K=32,
             threads=threads,
         ) as (bx, by):
             # ====== 空 1：A、B 各自的 shared tile——形状分别是多少？ ======
-            A_shared = T.alloc_shared(..., dtype)
-            B_shared = T.alloc_shared(..., dtype)
+            A_shared = T.alloc_shared((BLOCK_M, BLOCK_K), dtype)
+            B_shared = T.alloc_shared((BLOCK_K, BLOCK_N), dtype)
 
             # ====== 空 2：C 的累加器 tile，放寄存器（fragment），
             #         注意精度用 accum_dtype ======
-            C_local = T.alloc_fragment(..., accum_dtype)
+            C_local = T.alloc_fragment((BLOCK_M, BLOCK_N), accum_dtype)
 
             T.clear(C_local)
 
             # ====== 空 3：沿 K 维流水地推进——一共要多少步？提示：T.ceildiv ======
-            for k in T.Pipelined(..., num_stages=num_stages):
+            for k in T.Pipelined(T.ceildiv(K, BLOCK_K), num_stages=num_stages):
                 # ====== 空 4：把 A、B 的当前 tile 搬进 shared——
                 #         各自的全局起点坐标是多少？ ======
-                T.copy(A[..., ...], A_shared)
-                T.copy(B[..., ...], B_shared)
+                T.copy(A[by * BLOCK_M, k * BLOCK_K], A_shared)
+                T.copy(B[k * BLOCK_K, bx * BLOCK_N], B_shared)
                 # ====== 空 5：tile 级乘累加，提示：T.gemm ======
-                ...
+                T.gemm(A_shared, B_shared, C_local)
 
             T.copy(C_local, C[by * BLOCK_M, bx * BLOCK_N])
 

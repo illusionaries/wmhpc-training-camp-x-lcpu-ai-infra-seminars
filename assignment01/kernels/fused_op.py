@@ -35,12 +35,12 @@ def scale(x: torch.Tensor) -> torch.Tensor:
 # ====== 从这里开始改 ======
 
 @triton.jit
-def fused_kernel(x_ptr, z_ptr, n, BLOCK_SIZE: tl.constexpr):
+def fused_kernel(x_ptr, z_ptr, n, a, b, BLOCK_SIZE: tl.constexpr):
     pid = tl.program_id(0)
     offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
     mask = offsets < n
     x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
-    z = x * 2.0  # TODO：改成 relu(a * x + b)，提示 tl.maximum
+    z = tl.maximum(a * x + b, 0)
     tl.store(z_ptr + offsets, z, mask=mask)
 
 
@@ -49,5 +49,5 @@ def fused(x: torch.Tensor, a: float, b: float) -> torch.Tensor:
     n = x.numel()
     BLOCK_SIZE = 1024
     grid = (triton.cdiv(n, BLOCK_SIZE),)
-    fused_kernel[grid](x, z, n, BLOCK_SIZE=BLOCK_SIZE)  # TODO：把 a、b 传进去
+    fused_kernel[grid](x, z, n, a, b, BLOCK_SIZE=BLOCK_SIZE)  # TODO：把 a、b 传进去
     return z

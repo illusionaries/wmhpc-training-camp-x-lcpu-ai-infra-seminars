@@ -18,6 +18,35 @@ contract: 实现 run(program) -> (regs, cycles)
 通过 pytest tests/test_simt_sim.py 即为完成。
 """
 
+LANES = 32
 
-def run(program):
-    raise NotImplementedError("从这里开始写")
+def run(program, init_regs=[i for i in range(LANES)]):
+    regs = [r for r in init_regs]
+    cycles = 0
+    for instruction in program:
+        if instruction[0] == 'add':
+            cycles += 1
+            _, k = instruction
+            regs = [r + k for r in regs]
+        elif instruction[0] == 'mul':
+            cycles += 1
+            _, k = instruction
+            regs = [r * k for r in regs]
+        elif instruction[0] == 'if_lt':
+            _, t, then_prog, else_prog = instruction
+            then_mask = [r < t for r in regs]
+            else_mask = [not m for m in then_mask]
+            if any(then_mask):
+                then_regs, then_cycles = run(then_prog, regs)
+                cycles += then_cycles
+            else:
+                then_regs = [0] * LANES
+            if any(else_mask):
+                else_regs, else_cycles = run(else_prog, regs)
+                cycles += else_cycles
+            else:
+                else_regs = [0] * LANES
+            regs = [tr * tm + er * em for tr, tm, er, em in zip(then_regs, then_mask, else_regs, else_mask)]
+        else:
+            raise NotImplementedError("No such instruction.")
+    return regs, cycles
